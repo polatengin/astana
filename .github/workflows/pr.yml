@@ -70,13 +70,15 @@ jobs:
           for folder in ${changed_dirs// /$'\n'}; do
             url=$(cat README.md | grep "${folder}" | grep -o "https://[^)]*" | cut -d" " -f1)
             if [ -n "$url" ]; then
-              yq e ".rules[] | select(.host == \"$url\") | .host = \"$staging_host\"" -i .iac/ingress.yml
+
+              echo $url found in README.md
+
             else
               echo "${folder} url not found in README.md"
               exit 1
             fi
           done
-          cat ./.iac/ingress.yml
+          cat .iac/ingress.yml
 
       - name: Comment on PR with New Staging URL
         env:
