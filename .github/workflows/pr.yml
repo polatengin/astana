@@ -71,10 +71,9 @@ jobs:
         run: |
           echo "Modifying ingress.yml..."
           ls -lah
-          cat .iac/ingress.yml
-          echo ${{ env.changed_dirs }}
-          echo ${changed_dirs// /$'\n'}
-          for folder in $changed_dirs; do
+          cat README.md
+          for folder in ${changed_dirs// /$'\n'}; do
+            echo "Folder: $folder"
             url=$(cat README.md | grep "${folder}" | grep -o "https://[^)]*" | cut -d" " -f1)
             echo "URL: $url"
             if [ -n "$url" ]; then
