@@ -17,6 +17,8 @@ jobs:
 
       - name: azure cli login
         uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Get Changed Folders
         id: changed-folders
