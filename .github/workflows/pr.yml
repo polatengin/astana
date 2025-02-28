@@ -32,12 +32,14 @@ jobs:
         run: |
           git fetch origin
 
-          # Get the base and head refs from the PR event
           BASE_REF=${{ github.event.pull_request.base.ref }}
           HEAD_SHA=${{ github.event.pull_request.head.sha }}
 
-          # Get changed directories
-          CHANGED_DIRS=$(git diff --name-only origin/${BASE_REF}..${HEAD_SHA} | xargs -n1 dirname | sort -u | grep -v '^.$' || true)
+          CHANGED_DIRS=$(git diff --name-only origin/${BASE_REF}..${HEAD_SHA} | \
+            xargs -n1 dirname | \
+            sort -u | \
+            grep -v '^.$' | \
+            tr '\n' ' ' || true)
 
           echo "Changed folders: $CHANGED_DIRS"
           echo "changed_dirs=$CHANGED_DIRS" >> $GITHUB_ENV
