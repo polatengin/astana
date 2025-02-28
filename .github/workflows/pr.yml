@@ -39,6 +39,12 @@ jobs:
 
           IFS=' ' read -ra ALLOWED_PATHS_ARR <<< "$ALLOWED_PATHS"
 
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          RANDOM_STRING=$(openssl rand -hex 3)  # Generates a short random string
+          STAGING_HOST="${STAGING_HOST_PREFIX}-${PR_NUMBER}-${RANDOM_STRING}.${STAGING_HOST_DOMAIN}"
+          echo "Generated staging URL: $STAGING_HOST"
+          echo "staging_host=$STAGING_HOST" >> $GITHUB_ENV
+
           BASE_REF=${{ github.event.pull_request.base.ref }}
           HEAD_SHA=${{ github.event.pull_request.head.sha }}
 
@@ -58,59 +64,19 @@ jobs:
           echo "Changed folders: $CHANGED_DIRS"
           echo "changed_dirs=$CHANGED_DIRS" >> $GITHUB_ENV
 
-      - name: Generate Random Staging URL
-        id: staging-url
-        run: |
-          PR_NUMBER=${{ github.event.pull_request.number }}
-          RANDOM_STRING=$(openssl rand -hex 3)  # Generates a short random string
-          STAGING_HOST="${STAGING_HOST_PREFIX}-${PR_NUMBER}-${RANDOM_STRING}.${STAGING_HOST_DOMAIN}"
-          echo "Generated staging URL: $STAGING_HOST"
-          echo "staging_host=$STAGING_HOST" >> $GITHUB_ENV
-
       - name: Modify ingress.yml
         run: |
           echo "Modifying ingress.yml..."
-          ls -lah
-          cat README.md
           for folder in ${changed_dirs// /$'\n'}; do
-            echo "Folder: $folder"
             url=$(cat README.md | grep "${folder}" | grep -o "https://[^)]*" | cut -d" " -f1)
-            echo "URL: $url"
             if [ -n "$url" ]; then
-              echo "URL found for ${folder} in README.md"
-              echo "URL: $url"
               yq e ".rules[] | select(.host == \"$url\") | .host = \"$staging_host\"" -i .iac/ingress.yml
             else
               echo "${folder} url not found in README.md"
               exit 1
             fi
           done
-          cat .iac/ingress.yml
-
-      - name: Deploy to Kubernetes
-        run: |
-          for folder in $changed_dirs; do
-            if [[ -d "$folder" ]]; then
-              echo "Deploying $folder to Kubernetes..."
-              kubectl apply -f $folder/
-            fi
-          done
-        env:
-          KUBECONFIG: ${{ secrets.KUBECONFIG }}
-
-      - name: Announce New Hosts to Cloudflare
-        run: |
-          echo "Registering $staging_host on Cloudflare..."
-          curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CF_ZONE_ID }}/dns_records" \
-                -H "Authorization: Bearer ${{ secrets.CF_API_TOKEN }}" \
-                -H "Content-Type: application/json" \
-                --data '{
-                  "type": "CNAME",
-                  "name": "'$staging_host'",
-                  "content": "gap.ulak.com",
-                  "ttl": 3600,
-                  "proxied": true
-                }'
+          cat ./.iac/ingress.yml
 
       - name: Comment on PR with New Staging URL
         env:
@@ -122,3 +88,18 @@ jobs:
                 -H "Content-Type: application/json" \
                 -d "{\"body\": \"$COMMENT\"}" \
                 "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments"
+
+                - name: Announce New Hosts to Cloudflare
+                run: |
+                  echo "Registering $staging_host on Cloudflare..."
+                  curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CF_ZONE_ID }}/dns_records" \
+                        -H "Authorization: Bearer ${{ secrets.CF_API_TOKEN }}" \
+                        -H "Content-Type: application/json" \
+                        --data '{
+                          "type": "CNAME",
+                          "name": "'$staging_host'",
+                          "content": "gap.ulak.com",
+                          "ttl": 3600,
+                          "proxied": true
+                        }'
+        
