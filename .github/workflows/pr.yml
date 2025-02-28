@@ -32,7 +32,7 @@ jobs:
           inlineScript: |
             az account show
 
-      - name: Get Changed Folders
+      - name: Process changes
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
@@ -66,14 +66,13 @@ jobs:
               sleep 1
 
             COMMENTS=$(curl -s "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments")
-            echo $COMMENTS | jq '.[] | select(.body | contains("PR Preview Environment Deployed for ${folder}!"))'
-            if echo "$COMMENTS" | jq -e '.[] | select(.body | contains("PR Preview Environment Deployed for ${folder}!"))' > /dev/null; then
+            if echo "$COMMENTS" | jq -e ".[] | select(.body | contains(\"PR Preview Environment Deployed for ${folder}!\"))" > /dev/null; then
               echo "yes"
             else
               echo "no"
             fi
 
-            COMMENT="🚀 **PR Preview Environment Deployed for ${folder}!**- **New Host:** [${STAGING_HOST}](https://${STAGING_HOST})"
+            COMMENT="🚀 **PR Preview Environment Deployed for ${folder}!** -> [${STAGING_HOST}](https://${STAGING_HOST})"
 
             curl -s -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
               -d "{\"body\": \"$COMMENT\"}" \
