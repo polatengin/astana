@@ -69,12 +69,18 @@ jobs:
 
       - name: Modify ingress.yml
         run: |
+          echo "Modifying ingress.yml..."
+          ls -lah
+          cat .iac/ingress.yml
+          changed_dirs=${{ env.changed_dirs }}
+          changed_dirs=${changed_dirs// /$'\n'}
           for folder in $changed_dirs; do
             url=$(grep "${folder}" README.md | grep -o 'https://[^)]*')
+            echo "URL: $url"
             if [ -n "$url" ]; then
               echo "URL found for ${folder} in README.md"
               echo "URL: $url"
-              yq e ".rules[].host = \"$staging_host\"" -i .iac/ingress.yml
+              yq e ".rules[] | select(.host == \"$url\") | .host = \"$staging_host\"" -i .iac/ingress.yml
             else
               echo "${folder} url not found in README.md"
               exit 1
