@@ -1,0 +1,26 @@
+name: PR Deployment
+
+on:
+  pull_request:
+    paths:
+      - "src/web-admin/**"
+      - "src/web-site/**"
+      - "src/web-supervisor/**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: azure cli login
+        uses: azure/login@v2
+
+      - name: Get Changed Folders
+        id: changed-folders
+        run: |
+          CHANGED_DIRS=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}...${{ github.event.pull_request.head.ref }} | xargs -n1 dirname | sort -u | uniq)
+          echo "Changed folders: $CHANGED_DIRS"
+          echo "changed_dirs=$CHANGED_DIRS" >> $GITHUB_ENV
