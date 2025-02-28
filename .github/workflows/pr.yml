@@ -20,9 +20,78 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      - name: Azure CLI script
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            az account show
+
       - name: Get Changed Folders
         id: changed-folders
         run: |
-          CHANGED_DIRS=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}...${{ github.event.pull_request.head.ref }} | xargs -n1 dirname | sort -u | uniq)
+          git fetch origin
+
+          # Get the base and head refs from the PR event
+          BASE_REF=${{ github.event.pull_request.base.ref }}
+          HEAD_SHA=${{ github.event.pull_request.head.sha }}
+
+          # Get changed directories
+          CHANGED_DIRS=$(git diff --name-only origin/${BASE_REF}..${HEAD_SHA} | xargs -n1 dirname | sort -u | grep -v '^.$' || true)
+
           echo "Changed folders: $CHANGED_DIRS"
           echo "changed_dirs=$CHANGED_DIRS" >> $GITHUB_ENV
+
+      - name: Generate Random Staging URL
+        id: staging-url
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          RANDOM_STRING=$(openssl rand -hex 3)  # Generates a short random string
+          STAGING_HOST="staging-pr-${PR_NUMBER}-${RANDOM_STRING}.ulak.com"
+          echo "Generated staging URL: $STAGING_HOST"
+          echo "staging_host=$STAGING_HOST" >> $GITHUB_ENV
+
+      - name: Modify ingress.yml
+        run: |
+          for folder in $changed_dirs; do
+            if [[ -f "$folder/ingress.yml" ]]; then
+              echo "Updating ingress.yml in $folder"
+              yq e ".rules[].host = \"$staging_host\"" -i $folder/ingress.yml
+            fi
+          done
+
+      - name: Deploy to Kubernetes
+        run: |
+          for folder in $changed_dirs; do
+            if [[ -d "$folder" ]]; then
+              echo "Deploying $folder to Kubernetes..."
+              kubectl apply -f $folder/
+            fi
+          done
+        env:
+          KUBECONFIG: ${{ secrets.KUBECONFIG }}
+
+      - name: Announce New Hosts to Cloudflare
+        run: |
+          echo "Registering $staging_host on Cloudflare..."
+          curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CF_ZONE_ID }}/dns_records" \
+                -H "Authorization: Bearer ${{ secrets.CF_API_TOKEN }}" \
+                -H "Content-Type: application/json" \
+                --data '{
+                  "type": "CNAME",
+                  "name": "'$staging_host'",
+                  "content": "gap.ulak.com",
+                  "ttl": 3600,
+                  "proxied": true
+                }'
+
+      - name: Comment on PR with New Staging URL
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          COMMENT="🚀 **PR Preview Environment Deployed!**%0A- **New Host:** [${{ env.staging_host }}](https://${{ env.staging_host }})"
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "{\"body\": \"$COMMENT\"}" \
+                "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments"
