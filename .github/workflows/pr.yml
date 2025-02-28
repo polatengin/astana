@@ -65,7 +65,14 @@ jobs:
               yq ".spec.tls[].hosts += [\"${STAGING_HOST}\"]" .iac/ingress.yml > /tmp/ingress.yml && mv /tmp/ingress.yml .iac/ingress.yml
               sleep 1
 
-            COMMENT="🚀 **PR Preview Environment Deployed!**%0A- **New Host:** [${STAGING_HOST}](https://${STAGING_HOST})"
+            COMMENTS=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments")
+            if echo "$COMMENTS" | grep -q "🚀 **PR Preview Environment Deployed for ${folder}!"; then
+              echo "yes"
+            else
+              echo "no"
+            fi
+
+            COMMENT="🚀 **PR Preview Environment Deployed for ${folder}!**- **New Host:** [${STAGING_HOST}](https://${STAGING_HOST})"
 
             curl -s -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
               -d "{\"body\": \"$COMMENT\"}" \
@@ -86,7 +93,3 @@ jobs:
               exit 1
             fi
           done
-
-      - name: Announce New Hosts to Cloudflare
-        run: |
-          exit 0;
