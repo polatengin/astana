@@ -65,8 +65,9 @@ jobs:
               yq ".spec.tls[].hosts += [\"${STAGING_HOST}\"]" .iac/ingress.yml > /tmp/ingress.yml && mv /tmp/ingress.yml .iac/ingress.yml
               sleep 1
 
-            COMMENTS=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments")
-            if echo "$COMMENTS" | grep -q "🚀 **PR Preview Environment Deployed for ${folder}!"; then
+            COMMENTS=$(curl -s "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments")
+            echo $COMMENTS | jq '.[] | select(.body | contains("PR Preview Environment Deployed for ${folder}!"))'
+            if echo "$COMMENTS" | jq -e '.[] | select(.body | contains("PR Preview Environment Deployed for ${folder}!"))' > /dev/null; then
               echo "yes"
             else
               echo "no"
