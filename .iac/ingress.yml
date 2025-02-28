@@ -1,0 +1,115 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress
+  annotations:
+    nginx.ingress.kubernetes.io/enable-gzip: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+    nginx.ingress.kubernetes.io/proxy-body-size: 100m
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    nginx.ingress.kubernetes.io/from-to-www-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - wdap.sample.com
+        - wdsp.sample.com
+        - wdws.sample.com
+  rules:
+    - host: wdap.sample.com
+      http:
+        paths:
+          - path: /api/api1/(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: api1-service
+                port:
+                  number: 80
+          - path: /api/api2/(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: api2-service
+                port:
+                  number: 80
+          - path: /api/api3/(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: api3-service
+                port:
+                  number: 80
+          - path: /(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: web-admin-service
+                port:
+                  number: 80
+    - host: wdsp.sample.com
+      http:
+        paths:
+          - path: /api/api1/(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: api1-service
+                port:
+                  number: 80
+          - path: /api/api2/(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: api2-service
+                port:
+                  number: 80
+          - path: /api/api3/(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: api3-service
+                port:
+                  number: 80
+          - path: /(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: web-supervisor-service
+                port:
+                  number: 80
+    - host: wdws.sample.com
+      http:
+        paths:
+          - path: /api/api1/(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: api1-service
+                port:
+                  number: 80
+          - path: /api/api2/(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: api2-service
+                port:
+                  number: 80
+          - path: /api/api3/(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: api3-service
+                port:
+                  number: 80
+          - path: /(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: web-site-service
+                port:
+                  number: 80

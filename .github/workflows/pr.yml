@@ -7,6 +7,11 @@ on:
       - "src/web-site/**"
       - "src/web-supervisor/**"
 
+env:
+  ALLOWED_PATHS: "src/web-admin src/web-site src/web-supervisor"
+  STAGING_HOST_PREFIX: "staging-pr"
+  STAGING_HOST_DOMAIN: "sample.com"
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -20,9 +25,69 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Get Changed Folders
-        id: changed-folders
+      - name: Azure CLI script
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            az account show
+
+      - name: Process changes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          CHANGED_DIRS=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}...${{ github.event.pull_request.head.ref }} | xargs -n1 dirname | sort -u | uniq)
-          echo "Changed folders: $CHANGED_DIRS"
-          echo "changed_dirs=$CHANGED_DIRS" >> $GITHUB_ENV
+          git fetch origin
+
+          IFS=' ' read -ra ALLOWED_PATHS_ARR <<< "$ALLOWED_PATHS"
+
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          BASE_REF=${{ github.event.pull_request.base.ref }}
+          HEAD_SHA=${{ github.event.pull_request.head.sha }}
+
+          CHANGED_DIRS=$(git diff --name-only origin/${BASE_REF}..${HEAD_SHA} | \
+            xargs -n1 dirname | \
+            while read -r dir; do
+              for allowed in "${ALLOWED_PATHS_ARR[@]}"; do
+                if [[ "$dir" == "$allowed" || "$dir" == "$allowed"/* ]]; then
+                  echo "$dir"
+                  break
+                fi
+              done
+            done | tr '\n' ' ' || true)
+
+          echo "Modifying ingress.yml..."
+          for folder in ${CHANGED_DIRS// /$'\n'}; do
+            STAGING_HOST="staging-${PR_NUMBER}-${folder#src/web-}-$(openssl rand -hex 3).sample.com"
+            url=$(cat README.md | grep "${folder}" | grep -o "https://[^)]*" | cut -d" " -f1 | sed -e 's|https://||' -e 's|/.*$||')
+
+            if [ -n "$url" ]; then
+              yq ".spec.rules[] | select(.host == \"${url}\") | .host = \"${STAGING_HOST}\"" .iac/ingress.yml | sed '1s/^/- /;2s/^/  /' | sed 's/^/    /' >> .iac/ingress.yml
+              yq ".spec.tls[].hosts += [\"${STAGING_HOST}\"]" .iac/ingress.yml > /tmp/ingress.yml && mv /tmp/ingress.yml .iac/ingress.yml
+              sleep 1
+
+            COMMENTS=$(curl -s "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments")
+            if echo "$COMMENTS" | jq -e ".[] | select(.body | contains(\"PR Preview Environment Deployed for ${folder}!\"))" > /dev/null; then
+              echo "Staging environment for ${folder} already exists"
+            else
+              COMMENT="🚀 **PR Preview Environment Deployed for ${folder}!** -> [${STAGING_HOST}](https://${STAGING_HOST})"
+
+              curl -s -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
+                -d "{\"body\": \"$COMMENT\"}" \
+                "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments"
+            fi
+
+            # curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CF_ZONE_ID }}/dns_records" \
+            #   -H "Authorization: Bearer ${{ secrets.CF_API_TOKEN }}" \
+            #   -H "Content-Type: application/json" \
+            #   --data '{
+            #     "type": "CNAME",
+            #     "name": "'$staging_host'",
+            #     "content": "gap.ulak.com",
+            #     "ttl": 3600,
+            #     "proxied": true
+            #   }'
+            else
+              echo "${folder} url not found in README.md"
+              exit 1
+            fi
+          done
