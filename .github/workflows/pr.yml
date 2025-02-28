@@ -61,8 +61,8 @@ jobs:
             url=$(cat README.md | grep "${folder}" | grep -o "https://[^)]*" | cut -d" " -f1 | sed -e 's|https://||' -e 's|/.*$||')
 
             if [ -n "$url" ]; then
-              yq -y ".spec.rules[] | select(.host == \"${url}\") | .host = \"${STAGING_HOST}\"" .iac/ingress.yml | sed '1s/^/- /;2s/^/  /' | sed 's/^/    /' >> .iac/ingress.yml
-              yq -y ".spec.tls[].hosts += [\"${STAGING_HOST}\"]" .iac/ingress.yml > /tmp/ingress.yml && mv /tmp/ingress.yml .iac/ingress.yml
+              yq ".spec.rules[] | select(.host == \"${url}\") | .host = \"${STAGING_HOST}\"" .iac/ingress.yml | sed '1s/^/- /;2s/^/  /' | sed 's/^/    /' >> .iac/ingress.yml
+              yq ".spec.tls[].hosts += [\"${STAGING_HOST}\"]" .iac/ingress.yml > /tmp/ingress.yml && mv /tmp/ingress.yml .iac/ingress.yml
               sleep 1
 
             COMMENT="🚀 **PR Preview Environment Deployed!**%0A- **New Host:** [${STAGING_HOST}](https://${STAGING_HOST})"
