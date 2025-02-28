@@ -32,6 +32,8 @@ jobs:
         run: |
           git fetch origin
 
+          ALLOWED_PATHS=("src/web-admin" "src/web-site" "src/web-supervisor")
+
           BASE_REF=${{ github.event.pull_request.base.ref }}
           HEAD_SHA=${{ github.event.pull_request.head.sha }}
 
@@ -39,7 +41,14 @@ jobs:
             xargs -n1 dirname | \
             sort -u | \
             grep -v '^.$' | \
-            tr '\n' ' ' || true)
+            while read -r dir; do
+              for allowed in "${ALLOWED_PATHS[@]}"; do
+                if [[ "$dir" == "$allowed" || "$dir" == "$allowed"/* ]]; then
+                  echo "$dir"
+                  break
+                fi
+              done
+            done | tr '\n' ' ' || true)
 
           echo "Changed folders: $CHANGED_DIRS"
           echo "changed_dirs=$CHANGED_DIRS" >> $GITHUB_ENV
