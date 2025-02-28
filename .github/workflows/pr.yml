@@ -67,16 +67,14 @@ jobs:
 
             COMMENTS=$(curl -s "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments")
             if echo "$COMMENTS" | jq -e ".[] | select(.body | contains(\"PR Preview Environment Deployed for ${folder}!\"))" > /dev/null; then
-              echo "yes"
+              echo "Staging environment for ${folder} already exists"
             else
-              echo "no"
+              COMMENT="🚀 **PR Preview Environment Deployed for ${folder}!** -> [${STAGING_HOST}](https://${STAGING_HOST})"
+
+              curl -s -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
+                -d "{\"body\": \"$COMMENT\"}" \
+                "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments"
             fi
-
-            COMMENT="🚀 **PR Preview Environment Deployed for ${folder}!** -> [${STAGING_HOST}](https://${STAGING_HOST})"
-
-            curl -s -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
-              -d "{\"body\": \"$COMMENT\"}" \
-              "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments"
 
             # curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CF_ZONE_ID }}/dns_records" \
             #   -H "Authorization: Bearer ${{ secrets.CF_API_TOKEN }}" \
