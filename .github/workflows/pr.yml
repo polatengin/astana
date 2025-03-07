@@ -2,10 +2,6 @@ name: PR Deployment
 
 on:
   pull_request:
-    paths:
-      - "src/web-admin/**"
-      - "src/web-site/**"
-      - "src/web-supervisor/**"
 
 env:
   ALLOWED_PATHS: "src/web-admin src/web-site src/web-supervisor"
